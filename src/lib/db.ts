@@ -9,7 +9,10 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 
 function createClient() {
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+  // ลิงก์จาก Neon เป็น "sslmode=require" ซึ่ง library pg จะขึ้นคำเตือน SECURITY WARNING ทุกครั้ง
+  // เปลี่ยนเป็น "verify-full" ให้ตรงกับที่ pg ทำอยู่แล้วจริงๆ (ความปลอดภัยเท่าเดิม) คำเตือนจะหายไป
+  const connectionString = process.env.DATABASE_URL?.replace("sslmode=require", "sslmode=verify-full");
+  const adapter = new PrismaPg({ connectionString });
   return new PrismaClient({ adapter });
 }
 
