@@ -1,26 +1,19 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
-import { startMatch, startSuggestedMatch, type ActionResult } from "@/actions/sessions";
+import { useActionState, useState } from "react";
+import { startMatch, type ActionResult } from "@/actions/sessions";
 
 type TeamOption = {
   id: number;
   number: number;
   names: string; // "บอส & มิ้นท์"
-  gamesPlayed: number;
-  busy: boolean; // กำลังตีอยู่หรือรอคิวอยู่
+  busy: boolean; // กำลังตีอยู่
 };
 
-/**
- * เริ่มเกมใหม่: แตะเลือก 2 คู่แล้วกด "เริ่มเกม"
- * หรือกด "สุ่มคู่แข่งให้" ให้ระบบเลือกคู่ที่ตีน้อยสุดให้เอง
- */
+/** เลือกคู่เอง (กรณีพิเศษ เช่น อยากจัดคู่ข้ามคิว): แตะเลือก 2 คู่แล้วกด "เริ่มเกม" */
 export default function StartMatchForm({ sessionId, teams }: { sessionId: number; teams: TeamOption[] }) {
   const [selected, setSelected] = useState<number[]>([]);
   const [state, formAction, isStarting] = useActionState<ActionResult, FormData>(startMatch, {});
-  const [isSuggesting, startSuggesting] = useTransition();
-  const [suggestError, setSuggestError] = useState<string>();
-  const pending = isStarting || isSuggesting;
 
   function toggle(id: number) {
     setSelected((current) =>
@@ -30,14 +23,6 @@ export default function StartMatchForm({ sessionId, teams }: { sessionId: number
           ? [...current, id]
           : [current[1], id], // เลือกครบ 2 แล้ว แตะคู่ใหม่ = แทนคู่ที่เลือกก่อน
     );
-  }
-
-  function suggest() {
-    setSuggestError(undefined);
-    startSuggesting(async () => {
-      const result = await startSuggestedMatch(sessionId);
-      setSuggestError(result.error);
-    });
   }
 
   return (
@@ -69,35 +54,21 @@ export default function StartMatchForm({ sessionId, teams }: { sessionId: number
               />
               <span className="w-12 shrink-0 text-sm text-slate-500">คู่ {team.number}</span>
               <span className="flex-1 truncate font-medium">{team.names}</span>
-              <span className="text-xs text-slate-500">
-                {team.busy ? "กำลังตี/รอคิว" : `ตีแล้ว ${team.gamesPlayed} เกม`}
-              </span>
+              {team.busy && <span className="text-xs">กำลังตี</span>}
             </label>
           );
         })}
       </div>
 
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={pending || selected.length !== 2}
-          className="flex-1 rounded-xl bg-brand px-4 py-3 font-semibold text-white disabled:opacity-40"
-        >
-          {isStarting ? "กำลังเริ่ม..." : "▶️ เริ่มเกม"}
-        </button>
-        <button
-          type="button"
-          onClick={suggest}
-          disabled={pending}
-          className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-700 disabled:opacity-40"
-        >
-          {isSuggesting ? "กำลังสุ่ม..." : "🎲 สุ่มคู่แข่งให้"}
-        </button>
-      </div>
+      <button
+        type="submit"
+        disabled={isStarting || selected.length !== 2}
+        className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-medium text-slate-700 disabled:opacity-40"
+      >
+        {isStarting ? "กำลังเริ่ม..." : "เริ่มเกมด้วยคู่ที่เลือก"}
+      </button>
 
-      {(state.error || suggestError) && (
-        <p className="text-sm text-red-600">{state.error ?? suggestError}</p>
-      )}
+      {state.error && <p className="text-sm text-red-600">{state.error}</p>}
     </form>
   );
 }

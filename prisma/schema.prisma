@@ -107,6 +107,7 @@ model Match {
   servingSide Side?
   status      MatchStatus @default(WAITING)
   createdAt   DateTime    @default(now())
+  finishedAt  DateTime? // เวลาที่กดจบเกม (ใช้เรียงคิว: เกมไหนจบก่อน คนแพ้ได้ต่อคิวก่อน)
 
   session Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   teamA   Team?         @relation("TeamA", fields: [teamAId], references: [id], onDelete: SetNull)

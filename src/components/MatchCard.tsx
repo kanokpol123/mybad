@@ -13,7 +13,7 @@ type Props = {
 };
 
 const STATUS = {
-  WAITING: { text: "รอคิว", style: "bg-slate-100 text-slate-600" },
+  WAITING: { text: "ยังไม่เริ่ม", style: "bg-slate-100 text-slate-600" },
   PLAYING: { text: "กำลังตี", style: "bg-amber-100 text-amber-700" },
   FINISHED: { text: "จบแล้ว", style: "bg-emerald-100 text-emerald-700" },
 };

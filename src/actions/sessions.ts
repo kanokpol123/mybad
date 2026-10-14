@@ -7,7 +7,8 @@ import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getIdList, getInt, getString } from "@/lib/form-data";
-import { makeTeams, pairKey, pickOpponents, type PastTeam } from "@/lib/pairing";
+import { makeTeams, type PastTeam } from "@/lib/pairing";
+import { computeQueue } from "@/lib/queue";
 
 const MAX_ID = Number.MAX_SAFE_INTEGER;
 const HISTORY_WEEKS = 6; // ดูย้อนหลังกี่นัด เพื่อไม่ให้ได้คู่หูซ้ำ
@@ -71,7 +72,7 @@ export async function shuffleTeams(sessionId: number): Promise<ActionResult> {
     where: { sessionId, status: { not: "FINISHED" } },
   });
   if (liveMatches > 0) {
-    return { error: "ยังมีเกมที่ตีอยู่หรือรอคิว ให้จบหรือลบเกมนั้นก่อน" };
+    return { error: "ยังมีเกมที่ยังไม่จบ ให้จบหรือลบเกมนั้นก่อน" };
   }
 
   const attendees = await db.attendance.count({ where: { sessionId } });
@@ -144,20 +145,21 @@ export async function startMatch(_prev: ActionResult, formData: FormData): Promi
   const teamIds = getIdList(formData, "teamIds");
   if (teamIds.length !== 2) return { error: "เลือก 2 คู่ที่จะลงแข่ง" };
 
-  const { freeTeams } = await getTeamStatus(sessionId);
-  const [teamA, teamB] = teamIds.map((id) => freeTeams.find((t) => t.id === id));
-  if (!teamA || !teamB) return { error: "มีคู่ที่กำลังตีอยู่หรือรอคิวอยู่แล้ว" };
+  const { teams, queue } = await getQueue(sessionId);
+  const isFree = (id: number) => queue.status.get(id)?.kind !== "playing";
+  const [teamA, teamB] = teamIds.map((id) => teams.find((t) => t.id === id && isFree(id)));
+  if (!teamA || !teamB) return { error: "มีคู่ที่กำลังตีอยู่" };
 
   return createMatch(sessionId, teamA, teamB);
 }
 
-/** ให้ระบบเลือกคู่แข่งให้ (คู่ที่ตีน้อยสุดและยังไม่ค่อยเจอกัน) */
-export async function startSuggestedMatch(sessionId: number): Promise<ActionResult> {
-  const { freeTeams, timesMet } = await getTeamStatus(sessionId);
-  const picked = pickOpponents(freeTeams, timesMet);
-  if (!picked) return { error: "คู่ที่ว่างไม่ถึง 2 คู่ (คู่อื่นกำลังตีหรือรอคิวอยู่)" };
+/** เริ่มเกมถัดไปตามคิว (ชนะอยู่ต่อ สูงสุด 2 เกม — ดูกติกาใน lib/queue.ts) */
+export async function startNextMatch(sessionId: number): Promise<ActionResult> {
+  const { teams, queue } = await getQueue(sessionId);
+  if (!queue.next) return { error: "คู่ที่ว่างไม่ถึง 2 คู่ (คู่อื่นกำลังตีอยู่)" };
 
-  return createMatch(sessionId, picked[0], picked[1]);
+  const [teamA, teamB] = queue.next.map((id) => teams.find((t) => t.id === id)!);
+  return createMatch(sessionId, teamA, teamB);
 }
 
 /** สร้างเกมใหม่ แล้วพาไปหน้านับแต้มทันที */
@@ -187,34 +189,18 @@ async function createMatch(
   redirect(`/matches/${match.id}`);
 }
 
-/** ดูว่าตอนนี้คู่ไหนว่าง แต่ละคู่ตีไปกี่เกม และใครเจอใครไปแล้วบ้าง */
-async function getTeamStatus(sessionId: number) {
+/** โหลดคู่หูกับเกมทั้งหมดของนัดนี้ แล้วคำนวณคิว */
+async function getQueue(sessionId: number) {
   const [teams, matches] = await Promise.all([
-    db.team.findMany({ where: { sessionId }, include: { members: true } }),
+    db.team.findMany({ where: { sessionId }, include: { members: true }, orderBy: { number: "asc" } }),
     db.match.findMany({ where: { sessionId } }),
   ]);
-
-  const busyIds = new Set(
-    matches
-      .filter((m) => m.status !== "FINISHED")
-      .flatMap((m) => [m.teamAId, m.teamBId]),
+  const queue = computeQueue(
+    teams.map((t) => t.id),
+    matches,
   );
-
-  const met = new Map<string, number>();
-  for (const m of matches) {
-    if (m.teamAId && m.teamBId) {
-      const key = pairKey(m.teamAId, m.teamBId);
-      met.set(key, (met.get(key) ?? 0) + 1);
-    }
-  }
-
-  const freeTeams = teams
-    .filter((t) => !busyIds.has(t.id))
-    .map((t) => ({
-      id: t.id,
-      memberIds: t.members.map((m) => m.playerId),
-      gamesPlayed: matches.filter((m) => m.teamAId === t.id || m.teamBId === t.id).length,
-    }));
-
-  return { freeTeams, timesMet: (a: number, b: number) => met.get(pairKey(a, b)) ?? 0 };
+  return {
+    teams: teams.map((t) => ({ id: t.id, memberIds: t.members.map((m) => m.playerId) })),
+    queue,
+  };
 }

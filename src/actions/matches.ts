@@ -49,13 +49,13 @@ export async function finishMatch(matchId: number) {
   if (!getWinner(match.scoreA, match.scoreB, match.session.pointsToWin)) {
     throw new Error("ยังไม่มีทีมชนะ");
   }
-  await db.match.update({ where: { id: matchId }, data: { status: "FINISHED" } });
+  await db.match.update({ where: { id: matchId }, data: { status: "FINISHED", finishedAt: new Date() } });
   redirect(`/sessions/${match.sessionId}`);
 }
 
 /** เปิดเกมที่จบแล้วกลับมาแก้คะแนน (เผื่อกดผิด) */
 export async function reopenMatch(matchId: number) {
-  await db.match.update({ where: { id: matchId }, data: { status: "PLAYING" } });
+  await db.match.update({ where: { id: matchId }, data: { status: "PLAYING", finishedAt: null } });
   refresh();
 }
 
