@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getIdList, getInt, getString } from "@/lib/form-data";
 import { makeTeams, type PastTeam } from "@/lib/pairing";
+import { suggestFillers } from "@/lib/filler";
 import { computeQueue } from "@/lib/queue";
 
 const MAX_ID = Number.MAX_SAFE_INTEGER;
@@ -95,9 +96,9 @@ async function createTeams(sessionId: number) {
   const players = session.attendances.map((a) => a.player);
   if (players.length < 2) return;
 
-  // 1) ประวัติคู่หูของสัปดาห์ก่อนๆ (สัปดาห์ล่าสุดสำคัญที่สุด)
+  // 1) ประวัติคู่หูของสัปดาห์ก่อนๆ (สัปดาห์ล่าสุดสำคัญที่สุด) ดูเฉพาะนัดที่ตีคู่
   const previousSessions = await db.session.findMany({
-    where: { date: { lte: session.date }, id: { not: sessionId } },
+    where: { date: { lte: session.date }, id: { not: sessionId }, matchType: "DOUBLES" },
     orderBy: [{ date: "desc" }, { id: "desc" }],
     take: HISTORY_WEEKS,
     include: { teams: { include: { members: true } } },
@@ -145,42 +146,50 @@ export async function startMatch(_prev: ActionResult, formData: FormData): Promi
   const teamIds = getIdList(formData, "teamIds");
   if (teamIds.length !== 2) return { error: "เลือก 2 คู่ที่จะลงแข่ง" };
 
-  const { teams, queue } = await getQueue(sessionId);
-  const isFree = (id: number) => queue.status.get(id)?.kind !== "playing";
-  const [teamA, teamB] = teamIds.map((id) => teams.find((t) => t.id === id && isFree(id)));
+  const state = await getSessionState(sessionId);
+  const isFree = (id: number) => state.queue.status.get(id)?.kind !== "playing";
+  const [teamA, teamB] = teamIds.map((id) => state.teams.find((t) => t.id === id && isFree(id)));
   if (!teamA || !teamB) return { error: "มีคู่ที่กำลังตีอยู่" };
 
-  return createMatch(sessionId, teamA, teamB);
+  return createMatch(state, teamA, teamB, null); // ถ้าต้องมีตัวเติม ใช้คนที่ระบบเสนอ
 }
 
 /** เริ่มเกมถัดไปตามคิว (ชนะอยู่ต่อ สูงสุด 2 เกม — ดูกติกาใน lib/queue.ts) */
-export async function startNextMatch(sessionId: number): Promise<ActionResult> {
-  const { teams, queue } = await getQueue(sessionId);
-  if (!queue.next) return { error: "คู่ที่ว่างไม่ถึง 2 คู่ (คู่อื่นกำลังตีอยู่)" };
+export async function startNextMatch(sessionId: number, fillerId: number | null): Promise<ActionResult> {
+  const state = await getSessionState(sessionId);
+  if (!state.queue.next) return { error: "คู่ที่ว่างไม่ถึง 2 คู่ (คู่อื่นกำลังตีอยู่)" };
 
-  const [teamA, teamB] = queue.next.map((id) => teams.find((t) => t.id === id)!);
-  return createMatch(sessionId, teamA, teamB);
+  const [teamA, teamB] = state.queue.next.map((id) => state.teams.find((t) => t.id === id)!);
+  return createMatch(state, teamA, teamB, fillerId);
 }
+
+type SessionState = Awaited<ReturnType<typeof getSessionState>>;
+type TeamInfo = SessionState["teams"][number];
 
 /** สร้างเกมใหม่ แล้วพาไปหน้านับแต้มทันที */
 async function createMatch(
-  sessionId: number,
-  teamA: { id: number; memberIds: number[] },
-  teamB: { id: number; memberIds: number[] },
+  state: SessionState,
+  teamA: TeamInfo,
+  teamB: TeamInfo,
+  fillerId: number | null,
 ): Promise<ActionResult> {
-  const count = await db.match.count({ where: { sessionId } });
+  const playersA = playersOnCourt(state, teamA, teamB, fillerId);
+  const playersB = playersOnCourt(state, teamB, teamA, fillerId);
+  if ("error" in playersA) return playersA;
+  if ("error" in playersB) return playersB;
 
+  const count = await db.match.count({ where: { sessionId: state.sessionId } });
   const match = await db.match.create({
     data: {
-      sessionId,
+      sessionId: state.sessionId,
       number: count + 1,
       teamAId: teamA.id,
       teamBId: teamB.id,
-      // จดไว้ด้วยว่าใครลงฝั่งไหน (ใช้คิดสถิติรายคน)
+      // จดไว้ว่าใครลงฝั่งไหนจริงๆ (รวมตัวเติม) ใช้คิดสถิติรายคน
       players: {
         create: [
-          ...teamA.memberIds.map((playerId) => ({ playerId, side: "A" as const })),
-          ...teamB.memberIds.map((playerId) => ({ playerId, side: "B" as const })),
+          ...playersA.ids.map((playerId) => ({ playerId, side: "A" as const })),
+          ...playersB.ids.map((playerId) => ({ playerId, side: "B" as const })),
         ],
       },
     },
@@ -189,18 +198,45 @@ async function createMatch(
   redirect(`/matches/${match.id}`);
 }
 
-/** โหลดคู่หูกับเกมทั้งหมดของนัดนี้ แล้วคำนวณคิว */
-async function getQueue(sessionId: number) {
-  const [teams, matches] = await Promise.all([
+/** ใครลงสนามในนามคู่นี้: คู่ปกติ = สมาชิกทั้งคู่, คนที่เป็นเศษ = ตัวเขา + ตัวเติม */
+function playersOnCourt(
+  state: SessionState,
+  team: TeamInfo,
+  opponent: TeamInfo,
+  fillerId: number | null,
+): { ids: number[] } | { error: string } {
+  const isSolo = state.isDoubles && team.memberIds.length === 1;
+  if (!isSolo) return { ids: team.memberIds };
+
+  const candidates = suggestFillers({
+    soloTeamId: team.id,
+    opponentTeamId: opponent.id,
+    teams: state.teams,
+    queueStatus: state.queue.status,
+    matches: state.matches,
+  });
+  const chosen = fillerId ?? candidates[0]?.playerId;
+  if (chosen === undefined) return { error: "ไม่มีคนว่างมาเป็นตัวเติม" };
+  if (!candidates.some((c) => c.playerId === chosen)) return { error: "คนที่เลือกมาเติมไม่ว่างแล้ว" };
+
+  return { ids: [...team.memberIds, chosen] };
+}
+
+/** โหลดข้อมูลนัดนี้ (คู่หู + เกมทั้งหมด) แล้วคำนวณคิว */
+async function getSessionState(sessionId: number) {
+  const [session, teams, matches] = await Promise.all([
+    db.session.findUniqueOrThrow({ where: { id: sessionId } }),
     db.team.findMany({ where: { sessionId }, include: { members: true }, orderBy: { number: "asc" } }),
-    db.match.findMany({ where: { sessionId } }),
+    db.match.findMany({ where: { sessionId }, include: { players: true } }),
   ]);
-  const queue = computeQueue(
-    teams.map((t) => t.id),
-    matches,
-  );
   return {
+    sessionId,
+    isDoubles: session.matchType === "DOUBLES",
     teams: teams.map((t) => ({ id: t.id, memberIds: t.members.map((m) => m.playerId) })),
-    queue,
+    matches,
+    queue: computeQueue(
+      teams.map((t) => t.id),
+      matches,
+    ),
   };
 }

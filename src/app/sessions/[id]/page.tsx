@@ -16,6 +16,7 @@ import SubmitButton from "@/components/SubmitButton";
 import LoadingScreen from "@/components/LoadingScreen";
 import { db } from "@/lib/db";
 import { formatThaiDate, teamName } from "@/lib/format";
+import { suggestFillers } from "@/lib/filler";
 import { computeQueue, MAX_WIN_STREAK, type TeamQueueStatus } from "@/lib/queue";
 import { computeStats } from "@/lib/stats";
 
@@ -51,6 +52,7 @@ async function SessionPageContent({ params }: { params: PageProps<"/sessions/[id
   const allPlayers = await db.player.findMany({ where: { active: true }, orderBy: { name: "asc" } });
 
   const attendees = session.attendances.map((a) => a.player);
+  const isDoubles = session.matchType === "DOUBLES";
   const liveMatches = session.matches.filter((m) => m.status !== "FINISHED");
   const finishedMatches = session.matches.filter((m) => m.status === "FINISHED");
 
@@ -84,6 +86,25 @@ async function SessionPageContent({ params }: { params: PageProps<"/sessions/[id
     ? queue.next.map((id) => `คู่ ${teamById.get(id)!.number}`).join(" vs ")
     : null;
 
+  // ถ้าเกมถัดไปมี "คนที่เป็นเศษ" (ตีคู่แต่มีคนเดียว) → เตรียมรายชื่อตัวเติมให้เลือก
+  const playerName = new Map(attendees.map((p) => [p.id, p.name]));
+  const soloTeamId = isDoubles
+    ? queue.next?.find((id) => session.teams.find((t) => t.id === id)?.members.length === 1)
+    : undefined;
+  const filler =
+    queue.next && soloTeamId !== undefined
+      ? {
+          soloName: teamById.get(soloTeamId)!.names,
+          options: suggestFillers({
+            soloTeamId,
+            opponentTeamId: queue.next.find((id) => id !== soloTeamId)!,
+            teams: session.teams.map((t) => ({ id: t.id, memberIds: t.members.map((m) => m.playerId) })),
+            queueStatus: queue.status,
+            matches: session.matches,
+          }).map((c) => ({ id: c.playerId, name: playerName.get(c.playerId) ?? "?", gamesPlayed: c.gamesPlayed })),
+        }
+      : null;
+
   // เช็กว่ารายชื่อคนที่มาเปลี่ยนไปหลังสุ่มคู่หูหรือเปล่า (เช่น มีคนมาสาย)
   const playersInTeams = new Set(session.teams.flatMap((t) => t.members.map((m) => m.playerId)));
   const attendanceChanged =
@@ -91,7 +112,6 @@ async function SessionPageContent({ params }: { params: PageProps<"/sessions/[id
     (attendees.length !== playersInTeams.size || attendees.some((p) => !playersInTeams.has(p.id)));
 
   const todayStats = computeStats(attendees, finishedMatches);
-  const isDoubles = session.matchType === "DOUBLES";
 
   return (
     <>
@@ -126,6 +146,7 @@ async function SessionPageContent({ params }: { params: PageProps<"/sessions/[id
                 <li key={t.id} className="flex items-center gap-3 px-4 py-3">
                   <span className="w-12 shrink-0 text-sm text-slate-500">คู่ {t.number}</span>
                   <span className="flex-1 font-medium">{teamName(t.members.map((m) => m.player))}</span>
+                  {t.members.length === 1 && <span className="text-xs text-amber-700">ลงพร้อมตัวเติม</span>}
                   {t.members.length === 3 && <span className="text-xs text-slate-500">3 คน ผลัดกันลง</span>}
                 </li>
               ))}
@@ -157,7 +178,7 @@ async function SessionPageContent({ params }: { params: PageProps<"/sessions/[id
             ชนะอยู่ต่อ • แพ้ไปต่อท้ายคิว • ชนะ {MAX_WIN_STREAK} ติดต้องออก
           </p>
 
-          <NextMatchButton sessionId={session.id} label={nextLabel} />
+          <NextMatchButton sessionId={session.id} label={nextLabel} filler={filler} />
 
           <ul className="mt-3 divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
             {queueList.map((t) => (
