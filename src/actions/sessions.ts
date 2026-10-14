@@ -7,7 +7,7 @@ import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getIdList, getInt, getString } from "@/lib/form-data";
-import { makeTeams, type PastTeam } from "@/lib/pairing";
+import { makeTeams, shuffle, type PastTeam } from "@/lib/pairing";
 import { suggestFillers } from "@/lib/filler";
 import { computeQueue } from "@/lib/queue";
 
@@ -69,12 +69,7 @@ export async function deleteSession(formData: FormData) {
 
 /** สุ่มคู่หูใหม่ (เกมที่ตีจบไปแล้วยังอยู่ครบ) */
 export async function shuffleTeams(sessionId: number): Promise<ActionResult> {
-  const liveMatches = await db.match.count({
-    where: { sessionId, status: { not: "FINISHED" } },
-  });
-  if (liveMatches > 0) {
-    return { error: "ยังมีเกมที่ยังไม่จบ ให้จบหรือลบเกมนั้นก่อน" };
-  }
+  if (await hasLiveMatches(sessionId)) return { error: LIVE_MATCH_ERROR };
 
   const attendees = await db.attendance.count({ where: { sessionId } });
   if (attendees < 2) return { error: "ต้องมีคนมาอย่างน้อย 2 คน" };
@@ -84,8 +79,44 @@ export async function shuffleTeams(sessionId: number): Promise<ActionResult> {
   return {};
 }
 
-/** หัวใจของระบบ: ดึงข้อมูลจาก DB → ส่งให้ makeTeams() คิด → บันทึกผลลง DB */
-async function createTeams(sessionId: number) {
+/** จับคู่เอง: เลือก 2 คนให้เป็นคู่กัน (ล็อกไว้) แล้วสุ่มคนที่เหลือใหม่ */
+export async function lockPair(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const sessionId = getInt(formData, "sessionId", 1, MAX_ID);
+  const playerA = getInt(formData, "playerA", 1, MAX_ID);
+  const playerB = getInt(formData, "playerB", 1, MAX_ID);
+  if (playerA === playerB) return { error: "เลือก 2 คนที่ไม่ซ้ำกัน" };
+  if (await hasLiveMatches(sessionId)) return { error: LIVE_MATCH_ERROR };
+
+  const bothAttending = await db.attendance.count({
+    where: { sessionId, playerId: { in: [playerA, playerB] } },
+  });
+  if (bothAttending !== 2) return { error: "ต้องเลือกคนที่มาวันนี้" };
+
+  await createTeams(sessionId, [playerA, playerB]);
+  refresh();
+  return {};
+}
+
+/** กดล็อก / ปลดล็อกคู่ (ไม่สุ่มใหม่ แค่เปลี่ยนสถานะ) */
+export async function toggleTeamLock(formData: FormData) {
+  const teamId = getInt(formData, "teamId", 1, MAX_ID);
+  const team = await db.team.findUniqueOrThrow({ where: { id: teamId } });
+  await db.team.update({ where: { id: teamId }, data: { locked: !team.locked } });
+  refresh();
+}
+
+const LIVE_MATCH_ERROR = "ยังมีเกมที่ยังไม่จบ ให้จบหรือลบเกมนั้นก่อน";
+
+async function hasLiveMatches(sessionId: number) {
+  const count = await db.match.count({ where: { sessionId, status: { not: "FINISHED" } } });
+  return count > 0;
+}
+
+/**
+ * หัวใจของระบบ: ดึงข้อมูลจาก DB → ส่งให้ makeTeams() คิด → บันทึกผลลง DB
+ * คู่ที่ล็อกไว้จะไม่ถูกสุ่ม (newLockedPair = คู่ที่เพิ่งจับเอง ให้ล็อกเพิ่ม)
+ */
+async function createTeams(sessionId: number, newLockedPair: [number, number] | null = null) {
   const session = await db.session.findUniqueOrThrow({
     where: { id: sessionId },
     include: {
@@ -95,6 +126,22 @@ async function createTeams(sessionId: number) {
   });
   const players = session.attendances.map((a) => a.player);
   if (players.length < 2) return;
+  const attending = new Set(players.map((p) => p.id));
+
+  // 0) คู่ที่ล็อกไว้ (ตีคู่เท่านั้น) ข้ามคู่ที่มีคนไม่ได้มาแล้ว และคนที่กำลังจับคู่ใหม่
+  const isDoubles = session.matchType === "DOUBLES";
+  let lockedGroups = isDoubles
+    ? session.teams
+        .filter((t) => t.locked)
+        .map((t) => t.members.map((m) => m.playerId))
+        .filter((ids) => ids.every((id) => attending.has(id)))
+    : [];
+  if (newLockedPair && isDoubles) {
+    lockedGroups = lockedGroups.filter((ids) => !ids.some((id) => newLockedPair.includes(id)));
+    lockedGroups.push(newLockedPair.filter((id) => attending.has(id)));
+  }
+  const lockedIds = new Set(lockedGroups.flat());
+  const freePlayers = players.filter((p) => !lockedIds.has(p.id));
 
   // 1) ประวัติคู่หูของสัปดาห์ก่อนๆ (สัปดาห์ล่าสุดสำคัญที่สุด) ดูเฉพาะนัดที่ตีคู่
   const previousSessions = await db.session.findMany({
@@ -117,19 +164,26 @@ async function createTeams(sessionId: number) {
     ),
   ];
 
-  // 2) ให้อัลกอริทึมคิด
-  const teamSize = session.matchType === "SINGLES" ? 1 : 2;
-  const teams = makeTeams(players, teamSize, history);
+  // 2) ให้อัลกอริทึมสุ่มเฉพาะคนที่ไม่ได้ล็อก
+  const teamSize = isDoubles ? 2 : 1;
+  const randomTeams = freePlayers.length > 0 ? makeTeams(freePlayers, teamSize, history) : [];
+
+  // รวมคู่ที่ล็อก + คู่ที่สุ่มได้ แล้วสลับลำดับ (เลขคู่ = ลำดับคิวตอนเริ่ม จะได้ไม่มีใครได้เปรียบ)
+  const allTeams = shuffle([
+    ...lockedGroups.filter((ids) => ids.length > 0).map((ids) => ({ ids, locked: true })),
+    ...randomTeams.map((members) => ({ ids: members.map((p) => p.id), locked: false })),
+  ]);
 
   // 3) ลบคู่หูเก่า (ถ้ามี) แล้วบันทึกคู่หูใหม่
   await db.$transaction([
     db.team.deleteMany({ where: { sessionId } }),
-    ...teams.map((members, index) =>
+    ...allTeams.map((team, index) =>
       db.team.create({
         data: {
           sessionId,
           number: index + 1,
-          members: { create: members.map((p) => ({ playerId: p.id })) },
+          locked: team.locked,
+          members: { create: team.ids.map((playerId) => ({ playerId })) },
         },
       }),
     ),

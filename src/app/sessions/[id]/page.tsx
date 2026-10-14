@@ -4,7 +4,8 @@
 // ===============================================================
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { deleteSession, updateAttendance } from "@/actions/sessions";
+import { deleteSession, toggleTeamLock, updateAttendance } from "@/actions/sessions";
+import LockPairForm from "@/components/LockPairForm";
 import MatchCard from "@/components/MatchCard";
 import NextMatchButton from "@/components/NextMatchButton";
 import PageHeader from "@/components/PageHeader";
@@ -139,15 +140,28 @@ async function SessionPageContent({ params }: { params: PageProps<"/sessions/[id
       {/* ---------- คู่หูวันนี้ ---------- */}
       {isDoubles && (
         <section className="mb-8">
-          <h2 className="mb-3 font-semibold text-slate-700">🤝 คู่หูสัปดาห์นี้</h2>
+          <h2 className="mb-1 font-semibold text-slate-700">🤝 คู่หูสัปดาห์นี้</h2>
+          <p className="mb-3 text-sm text-slate-500">กด 🔓 เพื่อล็อกคู่ — คู่ที่ล็อก 🔒 จะไม่ถูกสุ่มใหม่</p>
           {teams.length > 0 && (
             <ul className="mb-3 divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
               {session.teams.map((t) => (
-                <li key={t.id} className="flex items-center gap-3 px-4 py-3">
+                <li key={t.id} className={`flex items-center gap-3 px-4 py-2 ${t.locked ? "bg-amber-50" : ""}`}>
                   <span className="w-12 shrink-0 text-sm text-slate-500">คู่ {t.number}</span>
                   <span className="flex-1 font-medium">{teamName(t.members.map((m) => m.player))}</span>
                   {t.members.length === 1 && <span className="text-xs text-amber-700">ลงพร้อมตัวเติม</span>}
                   {t.members.length === 3 && <span className="text-xs text-slate-500">3 คน ผลัดกันลง</span>}
+                  {t.members.length === 2 && (
+                    <form action={toggleTeamLock}>
+                      <input type="hidden" name="teamId" value={t.id} />
+                      <button
+                        type="submit"
+                        aria-label={t.locked ? "ปลดล็อกคู่นี้" : "ล็อกคู่นี้"}
+                        className="rounded-lg px-2 py-1 text-lg hover:bg-slate-100"
+                      >
+                        {t.locked ? "🔒" : "🔓"}
+                      </button>
+                    </form>
+                  )}
                 </li>
               ))}
             </ul>
@@ -158,6 +172,15 @@ async function SessionPageContent({ params }: { params: PageProps<"/sessions/[id
             </p>
           )}
           <ShuffleTeamsButton sessionId={session.id} hasTeams={teams.length > 0} />
+
+          {attendees.length >= 2 && (
+            <details className="mt-3">
+              <summary className="cursor-pointer text-sm text-slate-500">จับคู่เอง (เลือก 2 คนให้เป็นคู่กัน)</summary>
+              <div className="mt-3">
+                <LockPairForm sessionId={session.id} players={attendees} />
+              </div>
+            </details>
+          )}
         </section>
       )}
       {/* ตีเดี่ยวไม่มีคู่หู แต่ต้องอัปเดตรายชื่อผู้แข่งเมื่อคนที่มาเปลี่ยน */}

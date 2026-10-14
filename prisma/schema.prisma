@@ -72,6 +72,7 @@ model Team {
   id        Int @id @default(autoincrement())
   sessionId Int
   number    Int // คู่ที่ 1, 2, 3, ...
+  locked    Boolean @default(false) // true = ล็อกไว้ กด "สุ่มคู่หูใหม่" แล้วคู่นี้ไม่เปลี่ยน
 
   session  Session      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   members  TeamMember[]
