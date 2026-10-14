@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+/* สีหลักของแอป: เรียกใช้ใน className ได้ เช่น bg-brand, text-team-a */
+@theme inline {
+  --font-sans: var(--font-thai);
+  --color-brand: #059669; /* เขียวสนามแบด */
+  --color-brand-dark: #047857;
+  --color-team-a: #2563eb; /* ทีม A = น้ำเงิน */
+  --color-team-b: #e11d48; /* ทีม B = แดง */
+}
+
+body {
+  background: #f1f5f9;
+  color: #0f172a;
+  /* กันการซูมเวลาแตะปุ่มรัวๆ บนมือถือ (ตอนนับแต้ม) */
+  touch-action: manipulation;
+}

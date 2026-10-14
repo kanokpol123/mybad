@@ -1,0 +1,145 @@
+// ===============================================================
+//  โครงสร้างฐานข้อมูล (Database Schema) ของระบบแบดมินตัน
+// ---------------------------------------------------------------
+//  แต่ละ "model" = 1 ตารางในฐานข้อมูล PostgreSQL
+//  แก้ไฟล์นี้แล้วต้องรัน:  npm run db:migrate
+//  (Prisma จะสร้างตาราง + สร้างโค้ด TypeScript ให้ใช้งานอัตโนมัติ)
+// ===============================================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------
+//  ผู้เล่น (เพื่อนในก๊วน)
+// ---------------------------------------------------------------
+model Player {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  // ระดับฝีมือ 1-5 ใช้ช่วยจัดคู่ให้สูสี (1 = มือใหม่, 5 = เทพ)
+  level     Int      @default(3)
+  // false = ไม่ได้มาเล่นแล้ว (ซ่อนไว้ แต่ประวัติการแข่งยังอยู่)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  attendances Attendance[]
+  teams       TeamMember[]
+  matches     MatchPlayer[]
+}
+
+// ---------------------------------------------------------------
+//  นัดตี 1 ครั้ง (เช่น "เสาร์ 18 ต.ค.")
+// ---------------------------------------------------------------
+model Session {
+  id          Int       @id @default(autoincrement())
+  date        DateTime  @db.Date
+  matchType   MatchType @default(DOUBLES)
+  pointsToWin Int       @default(21) // ตีกี่แต้มจบเกม (21 / 15 / 11)
+  createdAt   DateTime  @default(now())
+
+  attendances Attendance[]
+  teams       Team[]
+  matches     Match[]
+}
+
+enum MatchType {
+  SINGLES // เดี่ยว 1 vs 1
+  DOUBLES // คู่ 2 vs 2
+}
+
+// ---------------------------------------------------------------
+//  ใครมาตีในนัดไหนบ้าง (ตารางเชื่อม Player <-> Session)
+// ---------------------------------------------------------------
+model Attendance {
+  sessionId Int
+  playerId  Int
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  player  Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, playerId]) // คนเดียวกันมาซ้ำในนัดเดียวไม่ได้
+}
+
+// ---------------------------------------------------------------
+//  คู่หูประจำนัด (สุ่มครั้งเดียวตอนเริ่มนัด แล้วตีด้วยกันทั้งวัน)
+//  ตีคู่ = 2 คน (ถ้าคนมาเป็นเลขคี่ จะมี 1 คู่ที่มี 3 คนผลัดกันลง)
+//  ตีเดี่ยว = 1 คน
+// ---------------------------------------------------------------
+model Team {
+  id        Int @id @default(autoincrement())
+  sessionId Int
+  number    Int // คู่ที่ 1, 2, 3, ...
+
+  session  Session      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  members  TeamMember[]
+  matchesA Match[]      @relation("TeamA")
+  matchesB Match[]      @relation("TeamB")
+
+  @@unique([sessionId, number])
+}
+
+model TeamMember {
+  teamId   Int
+  playerId Int
+
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, playerId])
+}
+
+// ---------------------------------------------------------------
+//  1 เกม (คู่ไหนเจอคู่ไหน + คะแนน)
+// ---------------------------------------------------------------
+model Match {
+  id          Int         @id @default(autoincrement())
+  sessionId   Int
+  number      Int // เกมที่เท่าไหร่ของนัดนี้ (1, 2, 3, ...)
+  // คู่หูที่ลงแข่ง (เป็น null ได้ ถ้าสุ่มคู่หูใหม่ทีหลัง เกมเก่ายังอยู่ครบ)
+  teamAId     Int?
+  teamBId     Int?
+  scoreA      Int         @default(0)
+  scoreB      Int         @default(0)
+  // ฝ่ายที่ได้แต้มล่าสุด = ฝ่ายที่ได้เสิร์ฟ (null = ยังไม่เริ่ม)
+  servingSide Side?
+  status      MatchStatus @default(WAITING)
+  createdAt   DateTime    @default(now())
+
+  session Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  teamA   Team?         @relation("TeamA", fields: [teamAId], references: [id], onDelete: SetNull)
+  teamB   Team?         @relation("TeamB", fields: [teamBId], references: [id], onDelete: SetNull)
+  players MatchPlayer[]
+
+  @@index([sessionId])
+}
+
+enum MatchStatus {
+  WAITING  // ยังไม่เริ่ม (รอคอร์ทว่าง)
+  PLAYING  // กำลังตี
+  FINISHED // จบเกมแล้ว
+}
+
+// ฝั่ง A / ฝั่ง B ในเกม
+enum Side {
+  A
+  B
+}
+
+// ---------------------------------------------------------------
+//  ใครลงตีฝั่งไหนในเกมไหน (ใช้คิดสถิติรายคน)
+// ---------------------------------------------------------------
+model MatchPlayer {
+  matchId  Int
+  playerId Int
+  side     Side
+
+  match  Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([matchId, playerId])
+}
