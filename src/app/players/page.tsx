@@ -4,7 +4,6 @@
 import { connection } from "next/server";
 import { togglePlayerActive } from "@/actions/players";
 import AddPlayerForm from "@/components/AddPlayerForm";
-import LevelSelect from "@/components/LevelSelect";
 import PageHeader from "@/components/PageHeader";
 import SubmitButton from "@/components/SubmitButton";
 import { db } from "@/lib/db";
@@ -17,10 +16,7 @@ export default async function PlayersPage() {
 
   return (
     <>
-      <PageHeader
-        title="👥 ผู้เล่น"
-        subtitle={`${activeCount} คน • ระดับ Lv.1 (มือใหม่) – Lv.5 (เทพ) ใช้จัดทีมให้สูสี`}
-      />
+      <PageHeader title="👥 ผู้เล่น" subtitle={`ทั้งหมด ${activeCount} คน`} />
 
       <AddPlayerForm />
 
@@ -28,7 +24,6 @@ export default async function PlayersPage() {
         {players.map((p) => (
           <li key={p.id} className={`flex items-center gap-3 px-4 py-3 ${p.active ? "" : "opacity-50"}`}>
             <span className="flex-1 truncate">{p.name}</span>
-            {p.active && <LevelSelect playerId={p.id} level={p.level} />}
             {/* ฟอร์มเล็กๆ ที่มีแค่ปุ่มเดียว: ส่ง playerId ไปให้ Server Action */}
             <form action={togglePlayerActive}>
               <input type="hidden" name="playerId" value={p.id} />

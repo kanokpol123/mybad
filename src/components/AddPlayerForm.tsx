@@ -21,18 +21,6 @@ export default function AddPlayerForm() {
           required
           className="min-w-0 flex-1 rounded-xl border border-slate-300 px-3 py-2.5"
         />
-        <select
-          name="level"
-          defaultValue="3"
-          aria-label="ระดับฝีมือ"
-          className="rounded-xl border border-slate-300 px-2"
-        >
-          {[1, 2, 3, 4, 5].map((n) => (
-            <option key={n} value={n}>
-              Lv.{n}
-            </option>
-          ))}
-        </select>
         <SubmitButton>เพิ่ม</SubmitButton>
       </div>
       {state.error && <p className="mt-2 text-sm text-red-600">{state.error}</p>}

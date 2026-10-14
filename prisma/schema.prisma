@@ -21,8 +21,6 @@ datasource db {
 model Player {
   id        Int      @id @default(autoincrement())
   name      String   @unique
-  // ระดับฝีมือ 1-5 ใช้ช่วยจัดคู่ให้สูสี (1 = มือใหม่, 5 = เทพ)
-  level     Int      @default(3)
   // false = ไม่ได้มาเล่นแล้ว (ซ่อนไว้ แต่ประวัติการแข่งยังอยู่)
   active    Boolean  @default(true)
   createdAt DateTime @default(now())

@@ -4,10 +4,9 @@
 //  มี 2 งาน:
 //
 //  1) makeTeams()     — สุ่ม "คู่หูประจำสัปดาห์" ครั้งเดียวตอนเริ่มนัด
-//     สุ่มจัดหลายร้อยแบบ แล้วให้ "คะแนนความแย่" กับแต่ละแบบ
-//       - เคยเป็นคู่กันในสัปดาห์ก่อนๆ → แย่มาก (อยากให้ได้คู่ใหม่ทุกสัปดาห์)
-//       - ฝีมือแต่ละคู่ต่างกันมาก      → แย่ (อยากให้เก่งจับคู่กับมือใหม่)
-//     แล้วเลือกแบบที่ "แย่น้อยที่สุด"
+//     สุ่มจัดหลายร้อยแบบ แล้วให้ "คะแนนความซ้ำ" กับแต่ละแบบ
+//       - เคยเป็นคู่กันในสัปดาห์ก่อนๆ → ซ้ำ (ยิ่งเพิ่งคู่กันเมื่อไม่นาน ยิ่งซ้ำมาก)
+//     แล้วเลือกแบบที่ "ซ้ำน้อยที่สุด" → ได้คู่ใหม่ทุกสัปดาห์
 //
 //  2) pickOpponents() — ช่วยเลือกว่า "คู่ไหนเจอคู่ไหน" ในเกมถัดไป
 //     เลือกคู่ที่ตีน้อยที่สุด และยังไม่ค่อยได้เจอกัน
@@ -18,7 +17,6 @@
 
 export type PairingPlayer = {
   id: number;
-  level: number; // ระดับฝีมือ 1-5
 };
 
 /** คู่หูในสัปดาห์ก่อนๆ ใช้ดูว่าใครเคยคู่กับใครแล้ว */
@@ -27,57 +25,43 @@ export type PastTeam = {
   weight: number; // ความสำคัญ: สัปดาห์ล่าสุดสำคัญที่สุด
 };
 
-// น้ำหนักของ "ความแย่" แต่ละแบบ ปรับตัวเลขได้ตามใจก๊วน
-const PENALTY_SAME_PARTNER = 10;
-const PENALTY_LEVEL_GAP = 4;
 const TRIES = 1000; // สุ่มลองกี่แบบ (เยอะ = ดีขึ้นแต่ช้าลง ซึ่ง 1000 ก็เร็วมากแล้ว)
 
 // ---------------------------------------------------------------
 //  งานที่ 1: สุ่มคู่หูประจำสัปดาห์
 // ---------------------------------------------------------------
-export function makeTeams(
-  players: PairingPlayer[],
+export function makeTeams<T extends PairingPlayer>(
+  players: T[],
   teamSize: 1 | 2,
   history: PastTeam[],
-): PairingPlayer[][] {
+): T[][] {
   // ตีเดี่ยว: ทุกคนเป็นทีมของตัวเอง ไม่ต้องสุ่ม
   if (teamSize === 1) return shuffle(players).map((p) => [p]);
   if (players.length < 2) return [players];
 
   const partnerCount = countPartners(history);
-  const averageLevel = players.reduce((s, p) => s + p.level, 0) / players.length;
 
-  let best: PairingPlayer[][] = [];
+  let best: T[][] = [];
   let bestCost = Infinity;
 
   for (let i = 0; i < TRIES; i++) {
     const candidate = splitIntoPairs(shuffle(players));
-    const cost = candidate.reduce(
-      (sum, team) => sum + teamCost(team, partnerCount, averageLevel),
-      0,
-    );
+    const cost = candidate.reduce((sum, team) => sum + repeatCost(team, partnerCount), 0);
     if (cost < bestCost) {
       best = candidate;
       bestCost = cost;
     }
+    if (bestCost === 0) break; // ไม่มีคู่ซ้ำเลย ดีที่สุดแล้ว ไม่ต้องหาต่อ
   }
   return best;
 }
 
-/** คิด "คะแนนความแย่" ของ 1 คู่ (ยิ่งน้อยยิ่งดี) */
-function teamCost(team: PairingPlayer[], partnerCount: Map<string, number>, averageLevel: number) {
+/** คิด "คะแนนความซ้ำ" ของ 1 คู่: เคยคู่กันมาแล้วกี่ครั้ง (ยิ่งน้อยยิ่งดี) */
+function repeatCost(team: PairingPlayer[], partnerCount: Map<string, number>) {
   let cost = 0;
-
-  // เคยคู่กันมาแล้ว
   for (const [a, b] of pairsWithin(team)) {
-    cost += (partnerCount.get(pairKey(a.id, b.id)) ?? 0) * PENALTY_SAME_PARTNER;
+    cost += partnerCount.get(pairKey(a.id, b.id)) ?? 0;
   }
-
-  // ฝีมือเฉลี่ยของคู่นี้ ห่างจากฝีมือเฉลี่ยของทั้งก๊วนแค่ไหน
-  // (ทุกคู่ใกล้ค่าเฉลี่ย = ทุกคู่สูสีกัน)
-  const teamLevel = team.reduce((s, p) => s + p.level, 0) / team.length;
-  cost += Math.abs(teamLevel - averageLevel) * PENALTY_LEVEL_GAP;
-
   return cost;
 }
 
@@ -94,8 +78,8 @@ function countPartners(history: PastTeam[]) {
 }
 
 /** แบ่งเป็นคู่ๆ: [a,b,c,d,e] → [a,b] [c,d,e]  (ถ้าคี่ คนสุดท้ายไปอยู่คู่สุดท้ายเป็น 3 คน) */
-function splitIntoPairs(list: PairingPlayer[]): PairingPlayer[][] {
-  const teams: PairingPlayer[][] = [];
+function splitIntoPairs<T>(list: T[]): T[][] {
+  const teams: T[][] = [];
   for (let i = 0; i + 2 <= list.length; i += 2) {
     teams.push(list.slice(i, i + 2));
   }
@@ -108,7 +92,6 @@ function splitIntoPairs(list: PairingPlayer[]): PairingPlayer[][] {
 // ---------------------------------------------------------------
 export type TeamForMatch = {
   id: number;
-  level: number; // ฝีมือเฉลี่ยของคู่
   gamesPlayed: number; // วันนี้ตีไปแล้วกี่เกม
 };
 
@@ -129,8 +112,7 @@ export function pickOpponents<T extends TeamForMatch>(
   for (const [a, b] of pairsWithin(shuffle(freeTeams))) {
     const cost =
       (a.gamesPlayed + b.gamesPlayed) * 10 + // ตีน้อยได้ลงก่อน
-      timesMet(a.id, b.id) * 6 + // ยังไม่เคยเจอกันได้ก่อน
-      Math.abs(a.level - b.level) * 2; // ฝีมือใกล้กันได้ก่อน
+      timesMet(a.id, b.id) * 6; // ยังไม่เคยเจอกันได้ก่อน
     if (cost < bestCost) {
       best = [a, b];
       bestCost = cost;

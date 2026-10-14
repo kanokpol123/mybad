@@ -190,7 +190,7 @@ async function createMatch(
 /** ดูว่าตอนนี้คู่ไหนว่าง แต่ละคู่ตีไปกี่เกม และใครเจอใครไปแล้วบ้าง */
 async function getTeamStatus(sessionId: number) {
   const [teams, matches] = await Promise.all([
-    db.team.findMany({ where: { sessionId }, include: { members: { include: { player: true } } } }),
+    db.team.findMany({ where: { sessionId }, include: { members: true } }),
     db.match.findMany({ where: { sessionId } }),
   ]);
 
@@ -213,7 +213,6 @@ async function getTeamStatus(sessionId: number) {
     .map((t) => ({
       id: t.id,
       memberIds: t.members.map((m) => m.playerId),
-      level: t.members.reduce((s, m) => s + m.player.level, 0) / t.members.length,
       gamesPlayed: matches.filter((m) => m.teamAId === t.id || m.teamBId === t.id).length,
     }));
 
