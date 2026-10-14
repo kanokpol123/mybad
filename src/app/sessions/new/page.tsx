@@ -52,12 +52,12 @@ async function NewSessionPageContent() {
           <Field label="แต้มต่อเกม">
             <select
               name="pointsToWin"
-              defaultValue="21"
+              defaultValue="11"
               className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5"
             >
-              <option value="21">21</option>
-              <option value="15">15</option>
               <option value="11">11</option>
+              <option value="15">15</option>
+              <option value="21">21</option>
             </select>
           </Field>
         </div>
