@@ -4,6 +4,7 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { createSession } from "@/actions/sessions";
+import LockedPairsInput from "@/components/LockedPairsInput";
 import PageHeader from "@/components/PageHeader";
 import PlayerCheckboxes from "@/components/PlayerCheckboxes";
 import SubmitButton from "@/components/SubmitButton";
@@ -64,6 +65,10 @@ async function NewSessionPageContent() {
 
         <Field label="ใครมาบ้าง? (แก้ทีหลังได้)">
           <PlayerCheckboxes players={players} />
+        </Field>
+
+        <Field label="ล็อกคู่ไว้ก่อนสุ่ม (ไม่บังคับ • เฉพาะตีคู่)">
+          <LockedPairsInput players={players} />
         </Field>
 
         <SubmitButton className="w-full py-3.5 text-lg">🎲 สร้างนัด + สุ่มคู่หู</SubmitButton>

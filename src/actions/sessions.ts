@@ -20,12 +20,14 @@ export type ActionResult = { error?: string };
 //  นัดตี
 // ---------------------------------------------------------------
 
-/** สร้างนัดใหม่ + สุ่มคู่หูให้เลย แล้วพาไปหน้านัดนั้น */
+/** สร้างนัดใหม่ + สุ่มคู่หูให้เลย (คู่ที่เลือกล็อกไว้จะไม่ถูกสุ่ม) แล้วพาไปหน้านัดนั้น */
 export async function createSession(formData: FormData) {
   const dateText = getString(formData, "date"); // "2026-10-18"
   const pointsToWin = getInt(formData, "pointsToWin", 5, 30);
   const matchType = getString(formData, "matchType") === "SINGLES" ? "SINGLES" : "DOUBLES";
-  const playerIds = getIdList(formData, "playerIds");
+  const lockedPairs = getLockedPairs(formData);
+  // คนที่ถูกล็อกคู่ ถือว่ามาด้วย (เผื่อลืมติ๊กชื่อ)
+  const playerIds = [...new Set([...getIdList(formData, "playerIds"), ...lockedPairs.flat()])];
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) throw new Error("วันที่ไม่ถูกต้อง");
 
@@ -39,8 +41,28 @@ export async function createSession(formData: FormData) {
     },
   });
 
-  await createTeams(session.id);
+  await createTeams(session.id, lockedPairs);
   redirect(`/sessions/${session.id}`);
+}
+
+/**
+ * อ่านคู่ที่ล็อกจากฟอร์ม: ช่อง lockA[i] คู่กับ lockB[i]
+ * ข้ามแถวที่เลือกไม่ครบ / เลือกคนเดียวกัน / คนที่อยู่ในคู่อื่นแล้ว
+ */
+function getLockedPairs(formData: FormData): [number, number][] {
+  const listA = formData.getAll("lockA").map(Number);
+  const listB = formData.getAll("lockB").map(Number);
+  const used = new Set<number>();
+  const pairs: [number, number][] = [];
+
+  listA.forEach((a, i) => {
+    const b = listB[i];
+    const valid = Number.isInteger(a) && Number.isInteger(b) && a > 0 && b > 0 && a !== b;
+    if (!valid || used.has(a) || used.has(b)) return;
+    used.add(a).add(b);
+    pairs.push([a, b]);
+  });
+  return pairs;
 }
 
 /** แก้รายชื่อคนที่มา (เช่น มีคนมาสาย หรือกลับก่อน) */
@@ -92,7 +114,7 @@ export async function lockPair(_prev: ActionResult, formData: FormData): Promise
   });
   if (bothAttending !== 2) return { error: "ต้องเลือกคนที่มาวันนี้" };
 
-  await createTeams(sessionId, [playerA, playerB]);
+  await createTeams(sessionId, [[playerA, playerB]]);
   refresh();
   return {};
 }
@@ -114,9 +136,9 @@ async function hasLiveMatches(sessionId: number) {
 
 /**
  * หัวใจของระบบ: ดึงข้อมูลจาก DB → ส่งให้ makeTeams() คิด → บันทึกผลลง DB
- * คู่ที่ล็อกไว้จะไม่ถูกสุ่ม (newLockedPair = คู่ที่เพิ่งจับเอง ให้ล็อกเพิ่ม)
+ * คู่ที่ล็อกไว้จะไม่ถูกสุ่ม (newLockedPairs = คู่ที่เพิ่งจับเอง ให้ล็อกเพิ่ม)
  */
-async function createTeams(sessionId: number, newLockedPair: [number, number] | null = null) {
+async function createTeams(sessionId: number, newLockedPairs: [number, number][] = []) {
   const session = await db.session.findUniqueOrThrow({
     where: { id: sessionId },
     include: {
@@ -136,9 +158,10 @@ async function createTeams(sessionId: number, newLockedPair: [number, number] | 
         .map((t) => t.members.map((m) => m.playerId))
         .filter((ids) => ids.every((id) => attending.has(id)))
     : [];
-  if (newLockedPair && isDoubles) {
-    lockedGroups = lockedGroups.filter((ids) => !ids.some((id) => newLockedPair.includes(id)));
-    lockedGroups.push(newLockedPair.filter((id) => attending.has(id)));
+  for (const pair of isDoubles ? newLockedPairs : []) {
+    if (!pair.every((id) => attending.has(id))) continue;
+    lockedGroups = lockedGroups.filter((ids) => !ids.some((id) => pair.includes(id)));
+    lockedGroups.push(pair);
   }
   const lockedIds = new Set(lockedGroups.flat());
   const freePlayers = players.filter((p) => !lockedIds.has(p.id));
