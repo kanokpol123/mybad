@@ -1,14 +1,26 @@
 // ===============================================================
 //  หน้า "/matches/[id]" : นับแต้ม 1 เกม
 // ===============================================================
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { deleteMatch } from "@/actions/matches";
 import PageHeader from "@/components/PageHeader";
 import Scoreboard from "@/components/Scoreboard";
 import SubmitButton from "@/components/SubmitButton";
+import LoadingScreen from "@/components/LoadingScreen";
 import { db } from "@/lib/db";
 
-export default async function MatchPage({ params }: PageProps<"/matches/[id]">) {
+export default function MatchPage({ params }: PageProps<"/matches/[id]">) {
+  // ส่วนที่ดึงข้อมูลจาก DB ต้องอยู่ใน <Suspense> ระหว่างรอจะแสดง LoadingScreen
+  // (Next.js 16 บังคับ เพื่อให้กดลิงก์แล้วหน้าเปลี่ยนทันที ไม่ค้าง)
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <MatchPageContent params={params} />
+    </Suspense>
+  );
+}
+
+async function MatchPageContent({ params }: { params: PageProps<"/matches/[id]">["params"] }) {
   const { id } = await params;
   const matchId = Number(id);
   if (!Number.isInteger(matchId)) notFound();

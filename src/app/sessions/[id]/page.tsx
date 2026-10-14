@@ -2,6 +2,7 @@
 //  หน้า "/sessions/[id]" : หน้าหลักของวันตีจริง
 //  [id] ในชื่อโฟลเดอร์ = ส่วนของ URL ที่เปลี่ยนได้ เช่น /sessions/5 → id = "5"
 // ===============================================================
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { deleteSession, updateAttendance } from "@/actions/sessions";
 import MatchCard from "@/components/MatchCard";
@@ -11,11 +12,22 @@ import ShuffleTeamsButton from "@/components/ShuffleTeamsButton";
 import StartMatchForm from "@/components/StartMatchForm";
 import StatsTable from "@/components/StatsTable";
 import SubmitButton from "@/components/SubmitButton";
+import LoadingScreen from "@/components/LoadingScreen";
 import { db } from "@/lib/db";
 import { formatThaiDate, teamName } from "@/lib/format";
 import { computeStats } from "@/lib/stats";
 
-export default async function SessionPage({ params }: PageProps<"/sessions/[id]">) {
+export default function SessionPage({ params }: PageProps<"/sessions/[id]">) {
+  // ส่วนที่ดึงข้อมูลจาก DB ต้องอยู่ใน <Suspense> ระหว่างรอจะแสดง LoadingScreen
+  // (Next.js 16 บังคับ เพื่อให้กดลิงก์แล้วหน้าเปลี่ยนทันที ไม่ค้าง)
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <SessionPageContent params={params} />
+    </Suspense>
+  );
+}
+
+async function SessionPageContent({ params }: { params: PageProps<"/sessions/[id]">["params"] }) {
   const { id } = await params;
   const sessionId = Number(id);
   if (!Number.isInteger(sessionId)) notFound();

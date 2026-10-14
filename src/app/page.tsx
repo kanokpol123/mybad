@@ -1,13 +1,25 @@
 // ===============================================================
 //  หน้าแรก "/" : รายการนัดตีทั้งหมด
 // ===============================================================
+import { Suspense } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { connection } from "next/server";
-import PageHeader from "@/components/PageHeader";
+import LoadingScreen from "@/components/LoadingScreen";
 import { db } from "@/lib/db";
 import { formatThaiDate } from "@/lib/format";
 
-export default async function HomePage() {
+export default function HomePage() {
+  // ส่วนที่ดึงข้อมูลจาก DB ต้องอยู่ใน <Suspense> ระหว่างรอจะแสดง LoadingScreen
+  // (Next.js 16 บังคับ เพื่อให้กดลิงก์แล้วหน้าเปลี่ยนทันที ไม่ค้าง)
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <HomePageContent />
+    </Suspense>
+  );
+}
+
+async function HomePageContent() {
   // บอก Next.js ว่าหน้านี้ต้องดึงข้อมูลสดจาก DB ทุกครั้งที่มีคนเปิด (ไม่ใช่สร้างไว้ล่วงหน้าตอน build)
   await connection();
 
@@ -21,7 +33,16 @@ export default async function HomePage() {
 
   return (
     <>
-      <PageHeader title="🏸 ก๊วนแบด" subtitle="สุ่มคู่ นับแต้ม ไม่ต้องจำเองอีกต่อไป" />
+      {/* หัวหน้าแรก: โลโก้ + ชื่อแอป (ไฟล์โลโก้อยู่ที่ public/logo.svg) */}
+      <header className="mb-6 flex items-center gap-3">
+        <Image src="/logo.svg" alt="" width={56} height={56} priority className="rounded-2xl shadow-sm" />
+        <div>
+          <h1 className="text-2xl font-bold">
+            My<span className="text-brand">Bad</span>
+          </h1>
+          <p className="text-slate-500">ก๊วนแบด • สุ่มคู่ นับแต้ม ไม่ต้องจำเอง</p>
+        </div>
+      </header>
 
       <Link
         href="/sessions/new"

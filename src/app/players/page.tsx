@@ -1,14 +1,26 @@
 // ===============================================================
 //  หน้า "/players" : เพิ่ม/แก้ไขรายชื่อผู้เล่น
 // ===============================================================
+import { Suspense } from "react";
 import { connection } from "next/server";
 import { togglePlayerActive } from "@/actions/players";
 import AddPlayerForm from "@/components/AddPlayerForm";
 import PageHeader from "@/components/PageHeader";
 import SubmitButton from "@/components/SubmitButton";
+import LoadingScreen from "@/components/LoadingScreen";
 import { db } from "@/lib/db";
 
-export default async function PlayersPage() {
+export default function PlayersPage() {
+  // ส่วนที่ดึงข้อมูลจาก DB ต้องอยู่ใน <Suspense> ระหว่างรอจะแสดง LoadingScreen
+  // (Next.js 16 บังคับ เพื่อให้กดลิงก์แล้วหน้าเปลี่ยนทันที ไม่ค้าง)
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <PlayersPageContent />
+    </Suspense>
+  );
+}
+
+async function PlayersPageContent() {
   await connection();
 
   const players = await db.player.findMany({ orderBy: [{ active: "desc" }, { name: "asc" }] });

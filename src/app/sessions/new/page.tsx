@@ -1,15 +1,27 @@
 // ===============================================================
 //  หน้า "/sessions/new" : สร้างนัดตีใหม่
 // ===============================================================
+import { Suspense } from "react";
 import { connection } from "next/server";
 import { createSession } from "@/actions/sessions";
 import PageHeader from "@/components/PageHeader";
 import PlayerCheckboxes from "@/components/PlayerCheckboxes";
 import SubmitButton from "@/components/SubmitButton";
+import LoadingScreen from "@/components/LoadingScreen";
 import { db } from "@/lib/db";
 import { toDateInputValue } from "@/lib/format";
 
-export default async function NewSessionPage() {
+export default function NewSessionPage() {
+  // ส่วนที่ดึงข้อมูลจาก DB ต้องอยู่ใน <Suspense> ระหว่างรอจะแสดง LoadingScreen
+  // (Next.js 16 บังคับ เพื่อให้กดลิงก์แล้วหน้าเปลี่ยนทันที ไม่ค้าง)
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <NewSessionPageContent />
+    </Suspense>
+  );
+}
+
+async function NewSessionPageContent() {
   await connection();
 
   const players = await db.player.findMany({ where: { active: true }, orderBy: { name: "asc" } });

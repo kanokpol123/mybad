@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- พื้นหลังสีเขียวสนามแบด -->
+  <rect width="64" height="64" rx="14" fill="#059669"/>
+  <!-- ลูกแบด (เอียงให้หัวพุ่งไปทางขวาบน) -->
+  <g transform="translate(35 29) rotate(-135) scale(0.9) translate(-32 -28)">
+    <path d="M24.5 40 L15 13 Q19 10.5 22.5 13 Q26.5 10 31.5 12.5 Q37 10 41 13 Q45 10.5 49 13 L39.5 40 Z" fill="#fff"/>
+    <path d="M27.5 40 L22.5 13 M32 40 L31.5 12.5 M36.5 40 L41 13" stroke="#059669" stroke-opacity=".35" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M18.6 23.5 Q32 26.5 45.4 23.5" stroke="#059669" stroke-opacity=".35" stroke-width="1.6" fill="none"/>
+    <path d="M23.5 39.5 H40.5 V42 A8.5 8.5 0 0 1 23.5 42 Z" fill="#fcd34d"/>
+    <rect x="23.5" y="38.5" width="17" height="3" rx="1" fill="#fff"/>
+  </g>
+  <!-- เส้นความเร็ว -->
+  <path d="M9 47 L14 42 M11 55 L19 47 M19 56 L23 52" stroke="#fff" stroke-opacity=".55" stroke-width="2.4" stroke-linecap="round"/>
+</svg>
