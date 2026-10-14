@@ -59,8 +59,12 @@ export async function reopenMatch(matchId: number) {
   refresh();
 }
 
-/** ลบเกม (เช่น สุ่มมาแล้วไม่ได้ตีจริง) */
+/** ลบเกมที่ยังไม่จบ (เช่น เริ่มผิดคู่ หรือเลิกตีกลางคัน) */
 export async function deleteMatch(matchId: number) {
-  const match = await db.match.delete({ where: { id: matchId } });
+  const match = await db.match.findUnique({ where: { id: matchId } });
+  if (!match) redirect("/"); // ถูกลบไปแล้ว (เช่น อีกเครื่องลบไปก่อน)
+  if (match.status === "FINISHED") throw new Error("เกมที่จบแล้วลบไม่ได้");
+
+  await db.match.delete({ where: { id: matchId } });
   redirect(`/sessions/${match.sessionId}`);
 }

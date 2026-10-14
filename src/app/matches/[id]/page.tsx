@@ -48,10 +48,14 @@ async function MatchPageContent({ params }: { params: PageProps<"/matches/[id]">
         teamBNames={namesOf("B")}
       />
 
-      {/* ลบได้เฉพาะเกมที่ยังไม่เริ่ม (กันลบเกมที่มีคะแนนแล้วโดยไม่ตั้งใจ) */}
-      {match.status === "WAITING" && (
+      {/* ลบได้ทุกเกมที่ยังไม่จบ (เช่น เริ่มผิดคู่ หรือเลิกตีกลางคัน) */}
+      {match.status !== "FINISHED" && (
         <form action={deleteMatch.bind(null, match.id)} className="mt-8">
-          <SubmitButton variant="danger" className="w-full" confirmMessage="ลบเกมนี้? (เช่น ไม่ได้ตีจริง)">
+          <SubmitButton
+            variant="danger"
+            className="w-full"
+            confirmMessage="ลบเกมนี้? คะแนนที่นับไว้ในเกมนี้จะหายไปด้วย"
+          >
             🗑️ ลบเกมนี้
           </SubmitButton>
         </form>
