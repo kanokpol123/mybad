@@ -16,6 +16,7 @@ import ShuffleTeamsButton from "@/components/ShuffleTeamsButton";
 import StartMatchForm from "@/components/StartMatchForm";
 import StatsTable from "@/components/StatsTable";
 import SubmitButton from "@/components/SubmitButton";
+import ThaiDateInput from "@/components/ThaiDateInput";
 import LoadingScreen from "@/components/LoadingScreen";
 import { db } from "@/lib/db";
 import { formatBooking, formatThaiDate, teamName, toDateInputValue } from "@/lib/format";
@@ -137,13 +138,7 @@ async function SessionPageContent({ params }: { params: PageProps<"/sessions/[id
           <input type="hidden" name="sessionId" value={session.id} />
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-slate-600">วันที่</span>
-            <input
-              type="date"
-              name="date"
-              required
-              defaultValue={toDateInputValue(session.date)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5"
-            />
+            <ThaiDateInput name="date" defaultValue={toDateInputValue(session.date)} />
           </label>
           <BookingFields defaults={session} />
           <SubmitButton variant="secondary" className="w-full">

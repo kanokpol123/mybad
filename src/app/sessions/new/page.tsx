@@ -9,6 +9,7 @@ import LockedPairsInput from "@/components/LockedPairsInput";
 import PageHeader from "@/components/PageHeader";
 import PlayerCheckboxes from "@/components/PlayerCheckboxes";
 import SubmitButton from "@/components/SubmitButton";
+import ThaiDateInput from "@/components/ThaiDateInput";
 import LoadingScreen from "@/components/LoadingScreen";
 import { db } from "@/lib/db";
 import { toDateInputValue } from "@/lib/format";
@@ -35,13 +36,7 @@ async function NewSessionPageContent() {
       {/* action={createSession} = กดส่งฟอร์มแล้วเรียกฟังก์ชันนี้บน server */}
       <form action={createSession} className="space-y-6">
         <Field label="วันที่">
-          <input
-            type="date"
-            name="date"
-            required
-            defaultValue={toDateInputValue(new Date())}
-            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5"
-          />
+          <ThaiDateInput name="date" defaultValue={toDateInputValue(new Date())} />
         </Field>
 
         <BookingFields />
