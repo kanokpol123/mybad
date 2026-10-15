@@ -7,7 +7,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import LoadingScreen from "@/components/LoadingScreen";
 import { db } from "@/lib/db";
-import { formatThaiDate } from "@/lib/format";
+import { formatBooking, formatThaiDate } from "@/lib/format";
 
 export default function HomePage() {
   // ส่วนที่ดึงข้อมูลจาก DB ต้องอยู่ใน <Suspense> ระหว่างรอจะแสดง LoadingScreen
@@ -72,6 +72,7 @@ async function HomePageContent() {
               >
                 <div>
                   <p className="font-medium">{formatThaiDate(s.date)}</p>
+                  {formatBooking(s) && <p className="text-sm text-emerald-700">🕒 {formatBooking(s)}</p>}
                   <p className="text-sm text-slate-500">
                     {s._count.attendances} คน • {s._count.matches} เกม •{" "}
                     {s.matchType === "DOUBLES" ? "คู่" : "เดี่ยว"}

@@ -21,6 +21,8 @@ datasource db {
 model Player {
   id        Int      @id @default(autoincrement())
   name      String   @unique
+  // ตัวการ์ตูนที่เลือก เก็บแค่รหัสสั้นๆ เช่น "boy-2" (รูปวาดจากโค้ดใน components/Avatar.tsx)
+  avatar    String?
   // false = ไม่ได้มาเล่นแล้ว (ซ่อนไว้ แต่ประวัติการแข่งยังอยู่)
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -36,6 +38,9 @@ model Player {
 model Session {
   id          Int       @id @default(autoincrement())
   date        DateTime  @db.Date
+  startTime   String? // เวลาที่จอง เช่น "18:00"
+  endTime     String? // เช่น "20:00"
+  courtName   String? // เลขคอร์ทที่จอง เช่น "A6" หรือ "A6, A7"
   matchType   MatchType @default(DOUBLES)
   pointsToWin Int       @default(21) // ตีกี่แต้มจบเกม (21 / 15 / 11)
   createdAt   DateTime  @default(now())

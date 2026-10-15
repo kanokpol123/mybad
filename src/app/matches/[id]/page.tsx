@@ -31,8 +31,11 @@ async function MatchPageContent({ params }: { params: PageProps<"/matches/[id]">
   });
   if (!match) notFound();
 
-  const namesOf = (side: "A" | "B") =>
-    match.players.filter((p) => p.side === side).map((p) => p.player.name);
+  // ใครลงฝั่ง A / ฝั่ง B (ชื่อ + ตัวการ์ตูน)
+  const playersOf = (side: "A" | "B") =>
+    match.players
+      .filter((p) => p.side === side)
+      .map((p) => ({ name: p.player.name, avatar: p.player.avatar }));
 
   // ส่งข้อมูลจาก server ให้ Scoreboard (Client Component) ไปจัดการการกดต่อ
   return (
@@ -44,8 +47,8 @@ async function MatchPageContent({ params }: { params: PageProps<"/matches/[id]">
         pointsToWin={match.session.pointsToWin}
         initial={{ a: match.scoreA, b: match.scoreB, serving: match.servingSide }}
         finished={match.status === "FINISHED"}
-        teamANames={namesOf("A")}
-        teamBNames={namesOf("B")}
+        teamA={playersOf("A")}
+        teamB={playersOf("B")}
       />
 
       {/* ลบได้ทุกเกมที่ยังไม่จบ (เช่น เริ่มผิดคู่ หรือเลิกตีกลางคัน) */}

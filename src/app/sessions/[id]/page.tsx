@@ -4,7 +4,9 @@
 // ===============================================================
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { deleteSession, toggleTeamLock, updateAttendance } from "@/actions/sessions";
+import { deleteSession, toggleTeamLock, updateAttendance, updateSessionInfo } from "@/actions/sessions";
+import { AvatarGroup } from "@/components/Avatar";
+import BookingFields from "@/components/BookingFields";
 import LockPairForm from "@/components/LockPairForm";
 import MatchCard from "@/components/MatchCard";
 import NextMatchButton from "@/components/NextMatchButton";
@@ -16,7 +18,7 @@ import StatsTable from "@/components/StatsTable";
 import SubmitButton from "@/components/SubmitButton";
 import LoadingScreen from "@/components/LoadingScreen";
 import { db } from "@/lib/db";
-import { formatThaiDate, teamName } from "@/lib/format";
+import { formatBooking, formatThaiDate, teamName, toDateInputValue } from "@/lib/format";
 import { suggestFillers } from "@/lib/filler";
 import { computeQueue, MAX_WIN_STREAK, type TeamQueueStatus } from "@/lib/queue";
 import { computeStats } from "@/lib/stats";
@@ -122,6 +124,34 @@ async function SessionPageContent({ params }: { params: PageProps<"/sessions/[id
         backHref="/"
       />
 
+      {/* ---------- เวลาที่จอง + คอร์ท ---------- */}
+      {formatBooking(session) && (
+        <p className="-mt-4 mb-6 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">
+          🕒 {formatBooking(session)}
+        </p>
+      )}
+
+      <details className="mb-3 rounded-2xl border border-slate-200 bg-white p-4">
+        <summary className="cursor-pointer font-medium">✏️ แก้ไขวัน เวลา คอร์ท</summary>
+        <form action={updateSessionInfo} className="mt-4 space-y-4">
+          <input type="hidden" name="sessionId" value={session.id} />
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-slate-600">วันที่</span>
+            <input
+              type="date"
+              name="date"
+              required
+              defaultValue={toDateInputValue(session.date)}
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5"
+            />
+          </label>
+          <BookingFields defaults={session} />
+          <SubmitButton variant="secondary" className="w-full">
+            บันทึก
+          </SubmitButton>
+        </form>
+      </details>
+
       {/* ---------- คนที่มา (กดเปิด/ปิดได้) ---------- */}
       <details className="mb-6 rounded-2xl border border-slate-200 bg-white p-4">
         <summary className="cursor-pointer font-medium">
@@ -147,7 +177,8 @@ async function SessionPageContent({ params }: { params: PageProps<"/sessions/[id
               {session.teams.map((t) => (
                 <li key={t.id} className={`flex items-center gap-3 px-4 py-2 ${t.locked ? "bg-amber-50" : ""}`}>
                   <span className="w-12 shrink-0 text-sm text-slate-500">คู่ {t.number}</span>
-                  <span className="flex-1 font-medium">{teamName(t.members.map((m) => m.player))}</span>
+                  <AvatarGroup players={t.members.map((m) => m.player)} />
+                  <span className="min-w-0 flex-1 truncate font-medium">{teamName(t.members.map((m) => m.player))}</span>
                   {t.members.length === 1 && <span className="text-xs text-amber-700">ลงพร้อมตัวเติม</span>}
                   {t.members.length === 3 && <span className="text-xs text-slate-500">3 คน ผลัดกันลง</span>}
                   {t.members.length === 2 && (

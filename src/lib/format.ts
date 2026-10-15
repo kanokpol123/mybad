@@ -21,3 +21,15 @@ export function toDateInputValue(date: Date): string {
 export function teamName(players: { name: string }[]): string {
   return players.map((p) => p.name).join(" & ");
 }
+
+/** สรุปการจอง เช่น "18:00–20:00 • คอร์ท A6" (ไม่ได้กรอกส่วนไหนก็ข้ามส่วนนั้น) */
+export function formatBooking(s: {
+  startTime: string | null;
+  endTime: string | null;
+  courtName: string | null;
+}): string | null {
+  const time = s.startTime && s.endTime ? `${s.startTime}–${s.endTime}` : (s.startTime ?? s.endTime);
+  const court = s.courtName ? `คอร์ท ${s.courtName}` : null;
+  const parts = [time, court].filter(Boolean);
+  return parts.length > 0 ? parts.join(" • ") : null;
+}

@@ -11,7 +11,9 @@
 import { useState, useTransition } from "react";
 import { finishMatch, reopenMatch, saveScore } from "@/actions/matches";
 import { gameStatusText, getWinner, serviceCourt, type TeamSide } from "@/lib/scoring";
+import Avatar from "./Avatar";
 
+type TeamPlayer = { name: string; avatar: string | null };
 type Score = { a: number; b: number; serving: TeamSide | null };
 
 type Props = {
@@ -19,11 +21,13 @@ type Props = {
   pointsToWin: number;
   initial: Score;
   finished: boolean;
-  teamANames: string[];
-  teamBNames: string[];
+  teamA: TeamPlayer[];
+  teamB: TeamPlayer[];
 };
 
-export default function Scoreboard({ matchId, pointsToWin, initial, finished, teamANames, teamBNames }: Props) {
+export default function Scoreboard({ matchId, pointsToWin, initial, finished, teamA, teamB }: Props) {
+  const teamANames = teamA.map((p) => p.name);
+  const teamBNames = teamB.map((p) => p.name);
   const [score, setScore] = useState<Score>(initial);
   const [history, setHistory] = useState<Score[]>([]); // คะแนนก่อนหน้า ใช้ย้อนกลับ
   const [error, setError] = useState<string>();
@@ -93,7 +97,7 @@ export default function Scoreboard({ matchId, pointsToWin, initial, finished, te
     <div className="space-y-3">
       <TeamPanel
         side="A"
-        names={teamANames}
+        players={teamA}
         score={score.a}
         serving={score.serving === "A"}
         won={winner === "A"}
@@ -101,7 +105,7 @@ export default function Scoreboard({ matchId, pointsToWin, initial, finished, te
       />
       <TeamPanel
         side="B"
-        names={teamBNames}
+        players={teamB}
         score={score.b}
         serving={score.serving === "B"}
         won={winner === "B"}
@@ -142,7 +146,7 @@ export default function Scoreboard({ matchId, pointsToWin, initial, finished, te
 /** ครึ่งจอของ 1 ทีม (ทั้งกล่องเป็นปุ่มกดเพิ่มแต้ม) */
 function TeamPanel(props: {
   side: TeamSide;
-  names: string[];
+  players: TeamPlayer[];
   score: number;
   serving: boolean;
   won: boolean;
@@ -155,9 +159,16 @@ function TeamPanel(props: {
       onClick={props.onTap}
       className={`${color} relative flex h-48 w-full flex-col items-center justify-center rounded-3xl text-white shadow-md transition select-none active:scale-[0.98] active:brightness-110`}
     >
-      <span className="text-lg font-medium">
+      <span className="flex items-center gap-2 text-lg font-medium">
+        <span className="flex -space-x-2">
+          {props.players.map((p) => (
+            <span key={p.name} className="rounded-full ring-2 ring-white/70">
+              <Avatar avatar={p.avatar} size={32} />
+            </span>
+          ))}
+        </span>
         {props.won && "👑 "}
-        {props.names.join(" & ")}
+        {props.players.map((p) => p.name).join(" & ")}
       </span>
       <span className="text-7xl font-bold tabular-nums">{props.score}</span>
       {props.serving && (

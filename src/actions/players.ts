@@ -9,6 +9,7 @@
 
 import { refresh } from "next/cache";
 import { db } from "@/lib/db";
+import { findAvatar } from "@/lib/avatars";
 import { getInt, getString } from "@/lib/form-data";
 
 export type FormState = { error?: string; success?: string };
@@ -42,4 +43,23 @@ export async function togglePlayerActive(formData: FormData) {
   const player = await db.player.findUniqueOrThrow({ where: { id } });
   await db.player.update({ where: { id }, data: { active: !player.active } });
   refresh();
+}
+
+/** แก้ชื่อ + เปลี่ยนตัวการ์ตูน (ใช้คู่กับ useActionState) */
+export async function updatePlayer(_prev: FormState, formData: FormData): Promise<FormState> {
+  const id = getInt(formData, "playerId", 1, Number.MAX_SAFE_INTEGER);
+  const name = getString(formData, "name");
+  const avatarId = getString(formData, "avatar");
+  // รับเฉพาะรหัสที่มีอยู่จริงในรายการ (กันข้อมูลแปลกๆ เข้าฐานข้อมูล)
+  const avatar = findAvatar(avatarId) ? avatarId : null;
+
+  if (!name) return { error: "กรุณาใส่ชื่อ" };
+  if (name.length > 30) return { error: "ชื่อยาวเกิน 30 ตัวอักษร" };
+
+  const sameName = await db.player.findUnique({ where: { name } });
+  if (sameName && sameName.id !== id) return { error: `มีชื่อ "${name}" อยู่แล้ว` };
+
+  await db.player.update({ where: { id }, data: { name, avatar } });
+  refresh();
+  return { success: "บันทึกแล้ว" };
 }

@@ -1,4 +1,5 @@
 import type { PlayerStat } from "@/lib/stats";
+import Avatar from "./Avatar";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
@@ -24,9 +25,12 @@ export default function StatsTable({ stats }: { stats: PlayerStat[] }) {
         <tbody className="divide-y divide-slate-100 text-center tabular-nums">
           {stats.map((s, i) => (
             <tr key={s.playerId}>
-              <td className="px-3 py-2.5 text-left">
-                <span className="mr-1 inline-block w-6">{MEDALS[i] ?? `${i + 1}.`}</span>
-                {s.name}
+              <td className="px-3 py-2 text-left">
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-6 shrink-0">{MEDALS[i] ?? `${i + 1}.`}</span>
+                  <Avatar avatar={s.avatar} size={24} />
+                  <span className="truncate">{s.name}</span>
+                </span>
               </td>
               <td className="px-2">{s.played}</td>
               <td className="px-2 font-semibold text-emerald-600">{s.wins}</td>

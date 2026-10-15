@@ -3,10 +3,9 @@
 // ===============================================================
 import { Suspense } from "react";
 import { connection } from "next/server";
-import { togglePlayerActive } from "@/actions/players";
 import AddPlayerForm from "@/components/AddPlayerForm";
 import PageHeader from "@/components/PageHeader";
-import SubmitButton from "@/components/SubmitButton";
+import PlayerRow from "@/components/PlayerRow";
 import LoadingScreen from "@/components/LoadingScreen";
 import { db } from "@/lib/db";
 
@@ -28,22 +27,13 @@ async function PlayersPageContent() {
 
   return (
     <>
-      <PageHeader title="👥 ผู้เล่น" subtitle={`ทั้งหมด ${activeCount} คน`} />
+      <PageHeader title="👥 ผู้เล่น" subtitle={`ทั้งหมด ${activeCount} คน • กด ✏️ เพื่อแก้ชื่อหรือเลือกตัวการ์ตูน`} />
 
       <AddPlayerForm />
 
       <ul className="mt-6 divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
         {players.map((p) => (
-          <li key={p.id} className={`flex items-center gap-3 px-4 py-3 ${p.active ? "" : "opacity-50"}`}>
-            <span className="flex-1 truncate">{p.name}</span>
-            {/* ฟอร์มเล็กๆ ที่มีแค่ปุ่มเดียว: ส่ง playerId ไปให้ Server Action */}
-            <form action={togglePlayerActive}>
-              <input type="hidden" name="playerId" value={p.id} />
-              <SubmitButton variant="secondary" className="px-3 py-1 text-sm">
-                {p.active ? "ซ่อน" : "เปิดใช้"}
-              </SubmitButton>
-            </form>
-          </li>
+          <PlayerRow key={p.id} player={p} />
         ))}
         {players.length === 0 && <li className="p-6 text-center text-slate-500">ยังไม่มีผู้เล่น เพิ่มคนแรกเลย!</li>}
       </ul>

@@ -34,6 +34,7 @@ export async function createSession(formData: FormData) {
   const session = await db.session.create({
     data: {
       date: new Date(dateText), // "YYYY-MM-DD" จะถูกอ่านเป็นเที่ยงคืน UTC ของวันนั้น
+      ...getBookingFields(formData), // เวลาที่จอง + เลขคอร์ท
       pointsToWin,
       matchType,
       // สร้างรายชื่อคนที่มาไปพร้อมกันเลย
@@ -43,6 +44,29 @@ export async function createSession(formData: FormData) {
 
   await createTeams(session.id, lockedPairs);
   redirect(`/sessions/${session.id}`);
+}
+
+/** แก้วันที่ เวลาที่จอง และเลขคอร์ท ของนัด */
+export async function updateSessionInfo(formData: FormData) {
+  const sessionId = getInt(formData, "sessionId", 1, MAX_ID);
+  const dateText = getString(formData, "date");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) throw new Error("วันที่ไม่ถูกต้อง");
+
+  await db.session.update({
+    where: { id: sessionId },
+    data: { date: new Date(dateText), ...getBookingFields(formData) },
+  });
+  refresh();
+}
+
+/** อ่านเวลาที่จอง ("18:00") และเลขคอร์ท ("A6") จากฟอร์ม — ไม่กรอกก็ได้ (เก็บเป็น null) */
+function getBookingFields(formData: FormData) {
+  const time = (key: string) => {
+    const value = getString(formData, key);
+    return /^\d{2}:\d{2}$/.test(value) ? value : null;
+  };
+  const courtName = getString(formData, "courtName").slice(0, 30);
+  return { startTime: time("startTime"), endTime: time("endTime"), courtName: courtName || null };
 }
 
 /**

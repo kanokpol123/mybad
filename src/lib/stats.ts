@@ -11,6 +11,7 @@ export type FinishedMatch = {
 export type PlayerStat = {
   playerId: number;
   name: string;
+  avatar: string | null;
   played: number;
   wins: number;
   losses: number;
@@ -19,14 +20,14 @@ export type PlayerStat = {
 };
 
 export function computeStats(
-  players: { id: number; name: string }[],
+  players: { id: number; name: string; avatar: string | null }[],
   matches: FinishedMatch[],
 ): PlayerStat[] {
   // เริ่มทุกคนที่ 0
   const table = new Map<number, PlayerStat>(
     players.map((p) => [
       p.id,
-      { playerId: p.id, name: p.name, played: 0, wins: 0, losses: 0, winRate: 0, pointDiff: 0 },
+      { playerId: p.id, name: p.name, avatar: p.avatar, played: 0, wins: 0, losses: 0, winRate: 0, pointDiff: 0 },
     ]),
   );
 

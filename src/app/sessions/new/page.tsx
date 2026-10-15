@@ -4,6 +4,7 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { createSession } from "@/actions/sessions";
+import BookingFields from "@/components/BookingFields";
 import LockedPairsInput from "@/components/LockedPairsInput";
 import PageHeader from "@/components/PageHeader";
 import PlayerCheckboxes from "@/components/PlayerCheckboxes";
@@ -42,6 +43,8 @@ async function NewSessionPageContent() {
             className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5"
           />
         </Field>
+
+        <BookingFields />
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="ประเภท">
